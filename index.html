@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Timer</title>
+  <style>
+    :root {
+      --bg: #0F0D0E;
+      --text: #F9F4DA;
+      --amber: #FCBA28;
+      --red: #FF5A4E;
+      --green: #4FC48A;
+      --muted: rgba(249, 244, 218, 0.6);
+      --card: rgba(249, 244, 218, 0.05);
+      --border: rgba(249, 244, 218, 0.15);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+    }
+
+    .hidden { display: none !important; }
+
+    /* ================= The machine ================= */
+    .app {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      text-align: center;
+      z-index: 5;
+    }
+
+    .panel { width: 100%; max-width: 520px; }
+
+    h1 {
+      font-size: clamp(1.7rem, 6vw, 2.6rem);
+      letter-spacing: -0.02em;
+      margin-bottom: 0.4rem;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin-bottom: 2rem;
+      font-size: clamp(0.95rem, 2.5vw, 1.05rem);
+    }
+
+    .time-inputs {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 0.6rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 0.35rem; }
+
+    .field label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+
+    .field input {
+      width: clamp(84px, 24vw, 120px);
+      background: var(--card);
+      color: var(--amber);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.6rem 0.5rem;
+      font-size: clamp(1.8rem, 7vw, 2.6rem);
+      font-weight: 800;
+      font-family: inherit;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .field input:focus { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+    .colon {
+      font-size: clamp(1.8rem, 7vw, 2.6rem);
+      font-weight: 800;
+      color: var(--amber);
+      padding-bottom: 0.6rem;
+    }
+
+    button {
+      border: none;
+      border-radius: 12px;
+      padding: 0.85rem 1.6rem;
+      font-size: 1.05rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: transform 0.12s ease, filter 0.12s ease;
+    }
+    button:hover { filter: brightness(1.1); }
+    button:active { transform: scale(0.96); }
+    button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+
+    .btn-primary { background: var(--amber); color: var(--bg); }
+    .btn-yes { background: var(--green); color: var(--bg); min-width: 120px; }
+    .btn-no  { background: var(--red);   color: var(--bg); min-width: 120px; }
+
+    .message {
+      min-height: 1.5em;
+      margin-top: 1rem;
+      font-size: 0.95rem;
+      color: var(--red);
+    }
+    .message.info { color: var(--muted); }
+
+    /* --- Running timer + interrogation --- */
+    .timer {
+      font-size: clamp(3.5rem, 18vw, 7rem);
+      font-weight: 900;
+      color: var(--amber);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      margin-bottom: 2rem;
+      display: inline-block;
+    }
+
+    .timer.jitter { animation: jitter 0.12s linear infinite; }
+    .timer.frantic { animation: jitter 0.06s linear infinite; color: var(--red); }
+
+    @keyframes jitter {
+      0%   { transform: translate(0, 0) rotate(0deg); }
+      25%  { transform: translate(calc(var(--j) * -1px), calc(var(--j) * 1px)) rotate(-0.6deg); }
+      50%  { transform: translate(calc(var(--j) * 1px), 0) rotate(0.6deg); }
+      75%  { transform: translate(0, calc(var(--j) * -1px)) rotate(-0.3deg); }
+      100% { transform: translate(0, 0) rotate(0deg); }
+    }
+
+    .question-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: clamp(1.25rem, 5vw, 2rem);
+    }
+
+    .question {
+      font-size: clamp(1.4rem, 5.5vw, 2rem);
+      font-weight: 800;
+      margin-bottom: 1.5rem;
+      min-height: 1.3em;
+    }
+
+    .question.pop { animation: pop 0.35s cubic-bezier(.2, 1.6, .4, 1); }
+
+    @keyframes pop {
+      0%   { transform: scale(0.6); opacity: 0; }
+      100% { transform: scale(1);   opacity: 1; }
+    }
+
+    .answers { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+    .times-up {
+      font-size: clamp(3rem, 15vw, 6rem);
+      font-weight: 900;
+      color: var(--red);
+      animation: shake 0.1s linear infinite;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translate(0, 0); }
+      25% { transform: translate(-4px, 3px); }
+      50% { transform: translate(4px, -2px); }
+      75% { transform: translate(-3px, -3px); }
+    }
+
+    /* ================= The melt ================= */
+    .melt-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    .strip {
+      position: absolute;
+      top: 0;
+      height: 100vh;
+      transform-origin: top center;
+      animation-name: melt;
+      animation-timing-function: cubic-bezier(.55, 0, .85, .45);
+      animation-fill-mode: forwards;
+    }
+
+    .strip-clip {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: var(--bg);
+      border-bottom-left-radius: 50% 40px;
+      border-bottom-right-radius: 50% 40px;
+    }
+
+    .strip-clip > .app {
+      position: absolute;
+      top: 0;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .drip {
+      position: absolute;
+      left: 50%;
+      bottom: -18px;
+      width: 60%;
+      aspect-ratio: 1 / 1.3;
+      max-width: 40px;
+      transform: translateX(-50%);
+      background: var(--bg);
+      border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
+    }
+
+    @keyframes melt {
+      0%   { transform: translateY(0) scaleY(1); filter: blur(0); }
+      25%  { transform: translateY(4vh) scaleY(1.12); }
+      100% { transform: translateY(130vh) scaleY(1.7); filter: blur(3px); }
+    }
+
+    /* ================= Christmas ================= */
+    .xmas {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      background: radial-gradient(ellipse at top, #1b2340 0%, #0d1020 55%, var(--bg) 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 1.5rem;
+    }
+
+    #snow {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .xmas-content { position: relative; z-index: 1; width: 100%; max-width: 1100px; }
+
+    .xmas h2 {
+      font-size: clamp(1.4rem, 5vw, 2.6rem);
+      font-weight: 800;
+      margin-bottom: clamp(1rem, 4vw, 2.5rem);
+      letter-spacing: 0.02em;
+    }
+    .xmas h2 .r { color: var(--red); }
+    .xmas h2 .g { color: var(--green); }
+
+    .xmas-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: clamp(0.5rem, 2.5vw, 1.5rem);
+    }
+
+    .xmas-unit {
+      background: rgba(249, 244, 218, 0.06);
+      border: 1px solid rgba(249, 244, 218, 0.18);
+      border-radius: 20px;
+      padding: clamp(1rem, 4vw, 2.5rem) 0.25rem;
+      backdrop-filter: blur(4px);
+    }
+
+    .xmas-num {
+      display: block;
+      font-size: clamp(3rem, 13vw, 9rem);
+      font-weight: 900;
+      color: var(--amber);
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 0 40px rgba(252, 186, 40, 0.35);
+    }
+
+    .xmas-label {
+      display: block;
+      margin-top: 0.6rem;
+      font-size: clamp(0.75rem, 2.2vw, 1.1rem);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+    }
+
+    .xmas-date { margin-top: clamp(1rem, 4vw, 2rem); color: var(--muted); }
+
+    .merry {
+      font-size: clamp(3rem, 14vw, 8rem);
+      font-weight: 900;
+      color: var(--amber);
+    }
+
+    /* ================= Mobile ================= */
+    @media (max-width: 520px) {
+      .xmas-grid { grid-template-columns: repeat(2, 1fr); }
+      .answers button { flex: 1 1 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .timer.jitter, .timer.frantic, .times-up, .question.pop { animation: none; }
+      .strip { animation-duration: 0.01s !important; animation-delay: 0s !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- ============ The machine ============ -->
+  <div class="app" id="app">
+    <!-- Step 1: enter a time -->
+    <section class="panel" id="setup-view">
+      <h1>The Timer</h1>
+      <p class="subtitle">Set a countdown of up to 5 minutes. Then prove you mean it.</p>
+
+      <form id="setup-form" novalidate>
+        <div class="time-inputs">
+          <div class="field">
+            <label for="minutes">Minutes</label>
+            <input type="number" id="minutes" min="0" max="5" step="1" value="1" inputmode="numeric" />
+          </div>
+          <span class="colon" aria-hidden="true">:</span>
+          <div class="field">
+            <label for="seconds">Seconds</label>
+            <input type="number" id="seconds" min="0" max="59" step="1" value="00" inputmode="numeric" />
+          </div>
+        </div>
+        <button type="submit" class="btn-primary">Submit</button>
+      </form>
+      <p class="message" id="setup-message" role="alert"></p>
+    </section>
+
+    <!-- Step 2: the interrogation -->
+    <section class="panel hidden" id="question-view">
+      <div class="timer" id="timer" aria-live="off">00:00.0</div>
+
+      <div class="question-card">
+        <p class="question" id="question" aria-live="polite">Are you sure?</p>
+        <div class="answers">
+          <button type="button" class="btn-yes" id="yes-btn">Yes</button>
+          <button type="button" class="btn-no" id="no-btn">No</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 3: zero -->
+    <section class="panel hidden" id="done-view">
+      <p class="times-up">Time's up!</p>
+    </section>
+  </div>
+
+  <!-- ============ What's underneath ============ -->
+  <section class="xmas hidden" id="xmas" aria-live="polite">
+    <canvas id="snow" aria-hidden="true"></canvas>
+    <div class="xmas-content">
+      <div id="xmas-countdown">
+        <h2><span class="r">Countdown</span> to <span class="g">Christmas</span></h2>
+        <div class="xmas-grid">
+          <div class="xmas-unit"><span class="xmas-num" id="x-days">00</span><span class="xmas-label">Days</span></div>
+          <div class="xmas-unit"><span class="xmas-num" id="x-hours">00</span><span class="xmas-label">Hours</span></div>
+          <div class="xmas-unit"><span class="xmas-num" id="x-minutes">00</span><span class="xmas-label">Minutes</span></div>
+          <div class="xmas-unit"><span class="xmas-num" id="x-seconds">00</span><span class="xmas-label">Seconds</span></div>
+        </div>
+        <p class="xmas-date" id="xmas-date"></p>
+      </div>
+      <p class="merry hidden" id="merry">Merry Christmas!</p>
+    </div>
+  </section>
+
+  <script>
+    // ---------------------------------------------------------------
+    // Elements
+    // ---------------------------------------------------------------
+    const $ = (id) => document.getElementById(id);
+    const app = $('app');
+    const setupView = $('setup-view');
+    const questionView = $('question-view');
+    const doneView = $('done-view');
+    const setupForm = $('setup-form');
+    const minInput = $('minutes');
+    const secInput = $('seconds');
+    const setupMsg = $('setup-message');
+    const timerEl = $('timer');
+    const questionEl = $('question');
+
+    const MAX_SECONDS = 5 * 60;
+    const SPEED_STEP = 1.5;
+
+    // The interrogation, escalating. Loops back if you're *really* committed.
+    const QUESTIONS = [
+      'Are you sure?',
+      'Are you sure?',
+      'Are you positive?',
+      'Are you absolutely certain?',
+      'Like, 100% sure?',
+      'No doubts at all?',
+      'Is that your final answer?',
+      'Pinky promise?',
+      'Would you bet your lunch on it?',
+      'Even if the clock gets dizzy?',
+      'Really, truly, deeply sure?',
+      'Have you consulted your heart?',
+      'Okay but are you SURE sure?',
+      'Last chance. Sure?',
+    ];
+
+    // ---------------------------------------------------------------
+    // Timer state (counts down in "machine time", which can run fast)
+    // ---------------------------------------------------------------
+    let submittedMs = 0;                            // what the user picked; "No" rewinds to this
+    let remainingMs = 0;
+    let speed = 1;
+    let questionIndex = 0;
+    let lastFrame = 0;
+    let rafId = null;
+
+    const pad = (n, len = 2) => String(n).padStart(len, '0');
+
+    function show(view) {
+      [setupView, questionView, doneView].forEach((v) => v.classList.toggle('hidden', v !== view));
+    }
+
+    function formatTime(ms) {
+      const tenths = Math.ceil(ms / 100);           // round up so 0.01s still shows 00:00.1
+      const totalSec = Math.floor(tenths / 10);
+      return `${pad(Math.floor(totalSec / 60))}:${pad(totalSec % 60)}.${tenths % 10}`;
+    }
+
+    function renderTimer() {
+      timerEl.textContent = formatTime(remainingMs);
+    }
+
+    function renderSpeed() {
+      // No speed readout: the faster it goes, the more upset the clock gets.
+      timerEl.classList.toggle('jitter', speed >= 3 && speed < 25);
+      timerEl.classList.toggle('frantic', speed >= 25);
+      timerEl.style.setProperty('--j', Math.min(1 + Math.log2(speed), 8).toFixed(1));
+    }
+
+    function askQuestion() {
+      questionEl.textContent = QUESTIONS[questionIndex % QUESTIONS.length];
+      questionEl.classList.remove('pop');
+      void questionEl.offsetWidth;                  // restart the pop animation
+      questionEl.classList.add('pop');
+    }
+
+    function loop(now) {
+      const dt = Math.max(0, now - lastFrame);    // first frame's timestamp can predate lastFrame
+      lastFrame = now;
+      remainingMs -= dt * speed;
+
+      if (remainingMs <= 0) {
+        remainingMs = 0;
+        renderTimer();
+        timeUp();
+        return;
+      }
+      renderTimer();
+      rafId = requestAnimationFrame(loop);
+    }
+
+    function stopTimer() {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+
+    // ---------------------------------------------------------------
+    // Step 1: validate and start
+    // ---------------------------------------------------------------
+    setupForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      setupMsg.className = 'message';
+
+      const mRaw = minInput.value.trim();
+      const sRaw = secInput.value.trim();
+      const m = mRaw === '' ? 0 : Number(mRaw);
+      const s = sRaw === '' ? 0 : Number(sRaw);
+
+      if (!Number.isInteger(m) || !Number.isInteger(s) || m < 0 || s < 0) {
+        setupMsg.textContent = 'Whole numbers only, please.';
+        return;
+      }
+      if (s > 59) {
+        setupMsg.textContent = 'Seconds must be between 0 and 59.';
+        return;
+      }
+      const total = m * 60 + s;
+      if (total === 0) {
+        setupMsg.textContent = 'Zero seconds? Nice try.';
+        return;
+      }
+      if (total > MAX_SECONDS) {
+        setupMsg.textContent = 'Maximum is 5:00. I don’t have all day.';
+        return;
+      }
+
+      setupMsg.textContent = '';
+      submittedMs = total * 1000;
+      resetRound();                                 // the timer waits for the first "Yes"
+      show(questionView);
+    });
+
+    // Stop, rewind to the submitted time, and start the questions over.
+    function resetRound() {
+      stopTimer();
+      remainingMs = submittedMs;
+      speed = 1;
+      questionIndex = 0;
+      renderTimer();
+      renderSpeed();
+      askQuestion();
+    }
+
+    // ---------------------------------------------------------------
+    // Step 2: the questions
+    // ---------------------------------------------------------------
+    $('yes-btn').addEventListener('click', () => {
+      if (remainingMs <= 0) return;
+      if (rafId) {
+        speed *= SPEED_STEP;                        // already running: go faster
+      } else {
+        lastFrame = performance.now();              // first "Yes": start at normal speed
+        rafId = requestAnimationFrame(loop);
+      }
+      questionIndex++;
+      renderSpeed();
+      askQuestion();
+    });
+
+    // "No": stay on this screen, rewind to the submitted time, ask again from the top.
+    $('no-btn').addEventListener('click', resetRound);
+
+    // ---------------------------------------------------------------
+    // Step 3: time's up -> melt the page
+    // ---------------------------------------------------------------
+    function timeUp() {
+      stopTimer();
+      show(doneView);
+      startXmas();                                  // render it underneath first
+      setTimeout(melt, 900);                        // let "Time's up!" shake for a moment
+    }
+
+    function melt() {
+      const layer = document.createElement('div');
+      layer.className = 'melt-layer';
+
+      const count = window.innerWidth < 600 ? 10 : 18;
+      const stripW = 100 / count;
+      const vw = window.innerWidth / 100;
+
+      // Snapshot the current page into vertical strips, each holding a slice of a clone.
+      const snapshot = app.cloneNode(true);
+      snapshot.removeAttribute('id');
+      snapshot.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
+
+      for (let i = 0; i < count; i++) {
+        const strip = document.createElement('div');
+        strip.className = 'strip';
+        strip.style.left = (i * stripW) + 'vw';
+        strip.style.width = `calc(${stripW}vw + 1px)`;  // 1px overlap hides seams
+        strip.style.animationDuration = (1.8 + Math.random() * 1.6) + 's';
+        strip.style.animationDelay = (Math.random() * 0.9) + 's';
+
+        const clip = document.createElement('div');
+        clip.className = 'strip-clip';
+        clip.style.borderBottomLeftRadius = `50% ${20 + Math.random() * 50}px`;
+        clip.style.borderBottomRightRadius = `50% ${20 + Math.random() * 50}px`;
+
+        const slice = snapshot.cloneNode(true);
+        slice.style.left = (-i * stripW * vw) + 'px';
+        clip.appendChild(slice);
+
+        const drip = document.createElement('div');
+        drip.className = 'drip';
+        drip.style.bottom = -(10 + Math.random() * 30) + 'px';
+
+        strip.append(clip, drip);
+        layer.appendChild(strip);
+      }
+
+      document.body.appendChild(layer);
+      app.classList.add('hidden');                  // the strips are the page now
+
+      // Clean up once the last strip has fallen away.
+      const strips = layer.querySelectorAll('.strip');
+      let finished = 0;
+      strips.forEach((s) => s.addEventListener('animationend', () => {
+        if (++finished === strips.length) layer.remove();
+      }));
+    }
+
+    // ---------------------------------------------------------------
+    // Underneath: countdown to Christmas + snow
+    // ---------------------------------------------------------------
+    function getChristmas(now) {
+      const y = now.getFullYear();
+      const start = new Date(y, 11, 25);
+      const end = new Date(y, 11, 26);
+      if (now >= end) return { target: new Date(y + 1, 11, 25), isToday: false };
+      return { target: start, isToday: now >= start };
+    }
+
+    function tickXmas() {
+      const now = new Date();
+      const { target, isToday } = getChristmas(now);
+
+      $('xmas-countdown').classList.toggle('hidden', isToday);
+      $('merry').classList.toggle('hidden', !isToday);
+
+      if (!isToday) {
+        const total = Math.max(0, Math.ceil((target - now) / 1000));
+        $('x-days').textContent = pad(Math.floor(total / 86400));
+        $('x-hours').textContent = pad(Math.floor((total % 86400) / 3600));
+        $('x-minutes').textContent = pad(Math.floor((total % 3600) / 60));
+        $('x-seconds').textContent = pad(total % 60);
+        $('xmas-date').textContent = target.toLocaleDateString(undefined, {
+          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        });
+      }
+      // Fire on the next whole second.
+      setTimeout(tickXmas, 1000 - (Date.now() % 1000));
+    }
+
+    function startXmas() {
+      $('xmas').classList.remove('hidden');
+      tickXmas();
+      startSnow();
+    }
+
+    function startSnow() {
+      const canvas = $('snow');
+      const ctx = canvas.getContext('2d');
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      let w, h, flakes = [];
+
+      function makeFlake(randomY) {
+        const big = Math.random() < 0.08;
+        return {
+          x: Math.random() * w,
+          y: randomY ? Math.random() * h : -20,
+          r: big ? 10 + Math.random() * 10 : 1 + Math.random() * 3,
+          glyph: big,
+          speed: big ? 0.6 + Math.random() * 0.8 : 0.5 + Math.random() * 1.8,
+          sway: Math.random() * Math.PI * 2,
+          swaySpeed: 0.005 + Math.random() * 0.015,
+          alpha: 0.5 + Math.random() * 0.5,
+        };
+      }
+
+      function resize() {
+        const dpr = window.devicePixelRatio || 1;
+        w = window.innerWidth;
+        h = window.innerHeight;
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const target = Math.min(Math.round((w * h) / (reduced ? 30000 : 7000)), 350);
+        while (flakes.length < target) flakes.push(makeFlake(true));
+        flakes.length = target;
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, w, h);
+        for (const f of flakes) {
+          f.y += f.speed;
+          f.sway += f.swaySpeed;
+          f.x += Math.sin(f.sway) * 0.6;
+          if (f.y > h + 20) Object.assign(f, makeFlake(false));
+          if (f.x > w + 20) f.x = -20;
+          if (f.x < -20) f.x = w + 20;
+
+          ctx.globalAlpha = f.alpha;
+          ctx.fillStyle = '#F9F4DA';
+          if (f.glyph) {
+            ctx.font = `${f.r * 2}px system-ui, sans-serif`;
+            ctx.fillText('❄', f.x, f.y);
+          } else {
+            ctx.beginPath();
+            ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        ctx.globalAlpha = 1;
+        requestAnimationFrame(draw);
+      }
+
+      window.addEventListener('resize', resize);
+      resize();
+      requestAnimationFrame(draw);
+    }
+  </script>
+</body>
+</html>
